@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telemedicine :: AAM-UPHC Daily Performance Portal</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+<header class="app-header">
+  <div class="brand-wrap">
+    <div class="logos">
+      <div class="logo-orb"><img src="National Emblem.png" alt="Government of West Bengal"></div>
+      <div class="logo-orb"><img src="NHM logo.png" alt="National Health Mission"></div>
+    </div>
+    <div>
+      <div class="eyebrow">GOVERNMENT OF WEST BENGAL • HEALTH &amp; FAMILY WELFARE DEPARTMENT</div>
+      <h1>Daily AAM-UPHC Telemedicine Performance Portal</h1>
+      <p>Automated daily district-wise performance monitoring for AAM-HWCs, Spoke and HUB Consultations.</p>
+    </div>
+  </div>
+  <div class="live-box" aria-label="Live system time">
+    <div class="live-pill"><span class="live-dot"></span><span>LIVE SYSTEM</span></div>
+    <div class="live-date-row"><span class="calendar-icon">▦</span><strong id="liveDate">--</strong></div>
+    <div class="live-clock-row"><span class="clock-icon">◷</span><b id="liveTime">--:--:--</b></div>
+    <div class="live-zone"><span class="zone-line saffron-line"></span><small>IST</small><i></i><small>INDIA</small><span class="zone-line green-line"></span></div>
+  </div>
+</header>
+
+<main class="page">
+<section class="control-panel two-upload">
+  <div class="upload-card">
+    <div class="step">01</div>
+    <div class="upload-copy"><span class="icon">📥</span><div><h2>Referred Summary</h2>Upload the daily <b>Consultation Referred Summary</b></div></div>
+    <label class="file-label" for="referredFile">Choose File</label>
+    <input id="referredFile" type="file" accept=".xlsx,.xls,.xlsm">
+    <div id="referredName" class="file-name">No file selected</div>
+  </div>
+  <div class="upload-card">
+    <div class="step">02</div>
+    <div class="upload-copy"><span class="icon">📤</span><div><h2>Received Summary</h2>Upload the daily <b>Consultation Received Summary</b></div></div>
+    <label class="file-label" for="receiveFile">Choose File</label>
+    <input id="receiveFile" type="file" accept=".xlsx,.xls,.xlsm">
+    <div id="receiveName" class="file-name">No file selected</div>
+  </div>
+  <div class="control-side">
+    <div class="mini-field"><label>REPORT DATE</label><input id="reportDate" type="date"></div>
+    <button id="generateBtn" class="btn primary">⚡ Generate Report</button>
+    <button id="resetBtn" class="btn secondary">↻ Reset</button>
+    <button id="pdfBtn" class="btn danger" disabled>📄 Download PDF</button>
+    <button id="excelBtn" class="btn success" disabled>📊 Download Excel</button>
+    <button id="pngBtn" class="btn export-png" disabled>🖼 Export PNG</button>
+  </div>
+</section>
+<div id="status" class="status info">Upload both raw Excel files and click <b>Generate Report</b>.</div>
+<div id="loading" class="loading hidden"><div class="spinner"></div><span id="loadingText">Reading workbook and applying report formulas…</span></div>
+
+<section id="reportSection" class="hidden">
+<div id="reportPaper" class="report-paper">
+  <div class="report-head">
+    <div><div class="report-kicker">TELEMEDICINE • AAM-UPHCs</div><h2>DAILY PERFORMANCE REPORT</h2><p>District-wise performance calculated from the two uploaded raw consultation summary</p></div>
+    <div class="report-date"><span>REPORT FOR</span><strong id="reportDateText">--</strong></div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi highlight"><span>BEST DISTRICT • SPOKE PERFORMANCE</span><strong id="kpiBestSpoke">--</strong><small id="kpiBestSpokeValue">-- consultations</small></div>
+    <div class="kpi highlight"><span>BEST DISTRICT • HUB PERFORMANCE</span><strong id="kpiBestHub">--</strong><small id="kpiBestHubValue">-- consultations</small></div>
+    <div class="kpi"><span>BEST DISTRICT • ACTIVE SPOKE %</span><strong id="kpiBestActiveDistrict">--</strong><small id="kpiBestActivePct">0%</small></div>
+    <div class="kpi"><span>BEST DISTRICT • ACTIVE DOCTOR %</span><strong id="kpiBestDoctorDistrict">--</strong><small id="kpiBestDoctorPct">0%</small></div>
+    <div class="kpi kpi-list-card"><span>TOP 3 DOCTORS • TODAY</span><small class="kpi-source">HUB UPHC • With Highest • Completed consultations</small><div id="kpiTopDoctors" class="kpi-list"><span class="kpi-list-empty">--</span></div></div>
+    <div class="kpi kpi-list-card"><span>TOP 3 AAMs UPHCs • TODAY</span><small class="kpi-source">AAM-UPHC • With Highest • Completed consultations</small><div id="kpiTopAams" class="kpi-list"><span class="kpi-list-empty">--</span></div></div>
+    <div class="kpi"><span>UPHC SPOKES did • <5 CONSULTATIONS</span><strong id="kpiLowSpokeCount">0</strong><small>Completed ≥ 1 and &lt; 5 • </small></div>
+  </div>
+
+  <div class="analytics-grid">
+    <article class="chart-card"><div class="chart-head"><h3>Top Districts • Spoke Consultations</h3><span>Completed</span></div><canvas id="spokeChart"></canvas></article>
+    <article class="chart-card"><div class="chart-head"><h3>Active AAM % by District</h3></div><canvas id="activeChart"></canvas></article>
+    <article class="chart-card"><div class="chart-head"><h3>Doctor Availability %</h3></div><canvas id="doctorChart"></canvas></article>
+  </div>
+
+  <div class="table-wrap">
+    <table id="reportTable">
+      <colgroup>
+        <col class="col-sl">
+        <col class="col-district">
+        <col class="col-metric" span="5">
+        <col class="col-metric-doctor" span="3">
+        <col class="col-metric-perf" span="6">
+        <col class="col-overall">
+      </colgroup>
+      <thead>
+        <tr><th rowspan="3">Sl. No.</th><th rowspan="3">DISTRICTS</th><th colspan="5" class="grp active">ACTIVE SPOKES</th><th colspan="3" class="grp doctor">Doctor's Availability</th><th colspan="6" class="grp perf">SPOKES PERFORMANCE ANALYSIS &amp; HUB PERFORMANCE ANALYSIS</th><th rowspan="3" class="grp overall">Overall Rank<br>[Q]</th></tr>
+        <tr><th rowspan="2">No of<br>Operational<br>AAM-UPHCs<br>[A]</th><th rowspan="2">No. of<br>Telemedicine<br>Enabled AAM-<br>UPHCs<br>[B]</th><th rowspan="2">No of active<br>AAM-UPHCs<br>[C]</th><th rowspan="2">% Active AAM-<br>UPHCs<br>[D]=[C/B*100]</th><th rowspan="2">Rank<br>[E]</th><th rowspan="2">Active<br>Doctors<br>[G]</th><th rowspan="2">% of<br>Availability<br>[H]</th><th rowspan="2">Rank<br>[I]</th><th colspan="3">SPOKE</th><th colspan="3">HUB</th></tr>
+        <tr><th>No of<br>Total<br>Consultations<br>[J]</th><th>No of consultations<br>per operational<br>AAM-UPHC<br>K = [J/B]</th><th>Rank<br>[L]</th><th>Hub_Total<br>Consultations<br>[M]</th><th>No. of Consultations<br>per Active Doctor<br>[N]</th><th>Rank<br>[O]</th></tr>
+      </thead>
+      <tbody id="reportBody"></tbody><tfoot id="reportFooter"></tfoot>
+    </table>
+  </div>
+
+  <div class="state-summary">
+    <div class="summary-title">WEST BENGAL SUMMARY</div>
+    <div class="summary-grid">
+      <div><span>Operational AAM-UPHCs</span><b id="sumOperational">0</b></div>
+      <div><span>Telemedicine Enabled</span><b id="sumEnabled">0</b></div>
+      <div><span>Active AAM-UPHCs</span><b id="sumActive">0</b></div>
+      <div><span>Active Doctors</span><b id="sumDoctors">0</b></div>
+      <div><span>Spoke Consultations</span><b id="sumSpoke">0</b></div>
+      <div><span>HUB Consultations</span><b id="sumHub">0</b></div>
+    </div>
+  </div>
+</div>
+</section>
+</main>
+<footer>Health and Family Welfare, Government of West Bengal<br><b>Designed & Developed by SPMU : TELEMEDICINE CELL, SWASTHYA BHAWAN, GN-29, Sector-V, Salt Lake City, Kolkata - 700091</b></footer>
+<script src="app.js"></script>
+</body>
+</html>
