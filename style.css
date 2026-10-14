@@ -2053,3 +2053,23 @@ body > footer b{
   .kpi-grid > .kpi:nth-child(3) > strong,
   .kpi-grid > .kpi:nth-child(4) > strong{font-size:clamp(14px,1.7vw,20px) !important;}
 }
+
+
+/* v44 — 7 KPI cards: 4 on top row, 3 on second row (Top-3 cards removed, 2 zero-consultation KPIs added) */
+.kpi-grid{grid-template-columns:repeat(12,minmax(0,1fr)) !important;gap:10px !important}
+.kpi-grid > .kpi:nth-child(1),.kpi-grid > .kpi:nth-child(2),.kpi-grid > .kpi:nth-child(3),.kpi-grid > .kpi:nth-child(4){grid-column:span 3 !important}
+.kpi-grid > .kpi:nth-child(5),.kpi-grid > .kpi:nth-child(6),.kpi-grid > .kpi:nth-child(7){grid-column:span 4 !important}
+.kpi-grid > .kpi:nth-child(5) > span::before{background:#f3b51e !important;content:"▦" !important;color:#fff !important;font-size:18px !important}
+.kpi-grid > .kpi:nth-child(6) > span::before{background:#df356f !important;content:"⚠" !important;color:#fff !important;font-size:17px !important}
+.kpi-grid > .kpi:nth-child(7) > span::before{background:#2468c8 !important;content:"⚠" !important;color:#fff !important;font-size:17px !important}
+.kpi-grid > .kpi:nth-child(5) > strong,.kpi-grid > .kpi:nth-child(6) > strong,.kpi-grid > .kpi:nth-child(7) > strong{font-size:34px !important;margin-top:14px !important}
+.kpi-grid > .kpi:nth-child(5) > small,.kpi-grid > .kpi:nth-child(6) > small,.kpi-grid > .kpi:nth-child(7) > small{font-size:11px !important;font-weight:800 !important;color:#304b70 !important;white-space:normal !important}
+@media(max-width:1200px){
+  .kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr)) !important}
+  .kpi-grid > .kpi:nth-child(n){grid-column:span 2 !important}
+}
+@media(max-width:700px){
+  .kpi-grid{grid-template-columns:1fr 1fr !important}
+  .kpi-grid > .kpi:nth-child(n){grid-column:span 1 !important}
+  .kpi-grid > .kpi:nth-child(7){grid-column:span 2 !important}
+}

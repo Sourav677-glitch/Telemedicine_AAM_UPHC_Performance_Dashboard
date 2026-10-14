@@ -636,26 +636,6 @@ function topBy(rows, field){
   })[0] || null;
 }
 
-function topThreeDoctors(receiveRows){
-  // TOP 3 DOCTORS for this UPHC dashboard must come ONLY from the
-  // Receive Summary rows whose Health Facility starts with "HUB UPHC".
-  // Do not include generic HUB, HWC, AAM-UPHC or any other facility rows.
-  return receiveRows
-    .filter(r=>{
-      const facility=text(r["Health Facility"]).trim();
-      return text(r["User"]) && /^HUB\s+UPHC\b/i.test(facility) && num(r["Completed"])>0;
-    })
-    .sort((a,b)=>num(b["Completed"])-num(a["Completed"]))
-    .slice(0,3);
-}
-
-function topThreeAams(referredRows){
-  return referredRows
-    .filter(r=>text(r["User"]) && /^\s*UPHC\b/i.test(text(r["Health Facility"])) && num(r["Completed"])>0)
-    .sort((a,b)=>num(b["Completed"])-num(a["Completed"]))
-    .slice(0,3);
-}
-
 function lowSpokeCount(referredRows){
   const map=new Map();
   for(const r of pivotSourceRows(referredRows)){
@@ -668,18 +648,11 @@ function lowSpokeCount(referredRows){
   return [...map.values()].filter(r=>r.completed>=1 && r.completed<5).length;
 }
 
-function kpiList(items, formatter){
-  if(!items.length) return '<span class="kpi-list-empty">No completed consultations</span>';
-  return items.map((item,i)=>`<div class="kpi-list-item"><b>${i+1}.</b><span>${formatter(item)}</span></div>`).join("");
-}
-
 function renderKpis(rows){
   const bestSpoke=topBy(rows,"spoke");
   const bestHub=topBy(rows,"hub");
   const bestActive=topBy(rows,"activePct");
   const bestDoctor=topBy(rows,"availability");
-  const doctors=topThreeDoctors(APP.raw.receive);
-  const aams=topThreeAams(APP.raw.referred);
   const lowCount=lowSpokeCount(APP.raw.referred);
 
   $("kpiBestSpoke").textContent=bestSpoke?bestSpoke.district:"--";
@@ -690,9 +663,19 @@ function renderKpis(rows){
   $("kpiBestActivePct").textContent=bestActive?pct0(bestActive.activePct):"0%";
   $("kpiBestDoctorDistrict").textContent=bestDoctor?bestDoctor.district:"--";
   $("kpiBestDoctorPct").textContent=bestDoctor?pct0(bestDoctor.availability):"0%";
-  $("kpiTopDoctors").innerHTML=kpiList(doctors,r=>`${escapeHtml(text(r["User"]))} <em>• ${escapeHtml(text(r["Health Facility"]))}</em> <small>${fmt0(r["Completed"])} completed</small>`);
-  $("kpiTopAams").innerHTML=kpiList(aams,r=>`${escapeHtml(text(r["User"]))} <em>• ${escapeHtml(text(r["Health Facility"]))}</em> <small>${fmt0(r["Completed"])} completed</small>`);
   $("kpiLowSpokeCount").textContent=fmt0(lowCount);
+
+  // NEW KPI: AAM UPHCs with 0 consultation = [B] Telemedicine Enabled - [C] Active (state total)
+  const totalB=rows.reduce((a,r)=>a+num(r.enabled),0);
+  const totalC=rows.reduce((a,r)=>a+num(r.active),0);
+  $("kpiZeroAamCount").textContent=fmt0(Math.max(0,totalB-totalC));
+
+  // NEW KPI: Districts with 0 consultations today (Spoke [J] = 0 and HUB [M] = 0)
+  const zeroDistricts=rows.filter(r=>num(r.spoke)===0 && num(r.hub)===0);
+  $("kpiZeroDistrictCount").textContent=fmt0(zeroDistricts.length);
+  $("kpiZeroDistrictNames").textContent=zeroDistricts.length
+    ? zeroDistricts.map(r=>r.district.trim()).join(", ")
+    : "No district with zero consultations";
 }
 
 function renderTable(rows){
@@ -1012,8 +995,8 @@ function downloadExcel(){
 
   // Number formats: actual percentages in Excel, not decimals.
   for(let r=firstDataRow;r<=totalRow;r++){
-    if(ws[`F${r+1}`])ws[`F${r+1}`].z="0%";
-    if(ws[`J${r+1}`])ws[`J${r+1}`].z="0%";
+    if(ws[`F${r+1}`])ws[`F${r+1}`].z="0%";   // % Active AAM-UPHCs [D]
+    if(ws[`I${r+1}`])ws[`I${r+1}`].z="0%";   // % of Availability [H]
     for(const col of ["C","D","E","G","H","J","K","L","M","N","O","P","Q"]){
       if(ws[`${col}${r+1}`])ws[`${col}${r+1}`].z="#,##0";
     }
@@ -1039,6 +1022,14 @@ function get4KExportScale(el){
 
 async function renderReport4K(){
   const el=$("reportPaper");
+  // PNG/PDF must contain only the header, KPIs and report table - not the graphs.
+  const charts=el.querySelector(".analytics-grid");
+  const prevDisplay=charts?charts.style.display:"";
+  if(charts) charts.style.display="none";
+  try{ return await renderReport4KInner(el); }
+  finally{ if(charts) charts.style.display=prevDisplay; }
+}
+async function renderReport4KInner(el){
   const rect=el.getBoundingClientRect();
   const scale=get4KExportScale(el);
   return html2canvas(el,{

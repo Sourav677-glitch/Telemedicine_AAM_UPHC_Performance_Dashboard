@@ -16,3 +16,5 @@ Updates in v30:
 - Existing XLSM-derived calculations, table layout, dense Overall Rank, colour bands, upload controls and exports retained.
 
 Version v43: Enhanced KPI consultation value blocks and enlarged/bold Top 3 Doctor/AAM cards.
+
+v44: Removed Top 3 Doctors & Top 3 AAMs KPIs; added "AAM UPHCs WITH 0 CONSULTATION" ([B]-[C]) and "Districts with 0 consultations Today" KPIs; Excel % of Availability [H] now exports as percentage; PNG/PDF export now contains only KPIs and report (no graphs).
