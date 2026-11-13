@@ -660,9 +660,9 @@ function renderKpis(rows){
   $("kpiBestHub").textContent=bestHub?bestHub.district:"--";
   $("kpiBestHubValue").textContent=bestHub?`${fmt0(bestHub.hub)} consultations`:"-- consultations";
   $("kpiBestActiveDistrict").textContent=bestActive?bestActive.district:"--";
-  $("kpiBestActivePct").textContent=bestActive?pct0(bestActive.activePct):"0%";
+  $("kpiBestActivePct").textContent=bestActive?`${pct0(bestActive.activePct)} active AAM-UPHC`:"0% active AAM-UPHC";
   $("kpiBestDoctorDistrict").textContent=bestDoctor?bestDoctor.district:"--";
-  $("kpiBestDoctorPct").textContent=bestDoctor?pct0(bestDoctor.availability):"0%";
+  $("kpiBestDoctorPct").textContent=bestDoctor?`${pct0(bestDoctor.availability)} doctor availability`:"0% doctor availability";
   $("kpiLowSpokeCount").textContent=fmt0(lowCount);
 
   // NEW KPI: AAM UPHCs with 0 consultation = [B] Telemedicine Enabled - [C] Active (state total)
@@ -1013,59 +1013,98 @@ function downloadExcel(){
   XLSX.writeFile(out,`Telemedicine_AAM_UPHC_Daily_Report_${APP.reportDate||"report"}.xlsx`);
 }
 
-function get4KExportScale(el){
+function getExportScale(el,targetLongSide,maxArea){
   const rect=el.getBoundingClientRect();
-  // Render at a true 4K-class width while preserving the report's aspect ratio.
-  // A minimum of 4x keeps smaller reports crisp; cap at 4x to avoid browser memory spikes.
-  return Math.min(4, Math.max(4, 3840 / Math.max(1, rect.width)));
+  const w=Math.max(1,rect.width),h=Math.max(1,rect.height);
+  // Adaptive scale: reach the target pixel size on the longest side, capped by
+  // safe browser canvas limits.
+  let scale=targetLongSide/Math.max(w,h);
+  scale=Math.min(scale,Math.sqrt(maxArea/(w*h)));
+  return Math.max(2,Math.min(scale,8));
 }
 
-async function renderReport4K(){
-  const el=$("reportPaper");
-  // PNG/PDF must contain only the header, KPIs and report table - not the graphs.
-  const charts=el.querySelector(".analytics-grid");
-  const prevDisplay=charts?charts.style.display:"";
-  if(charts) charts.style.display="none";
-  try{ return await renderReport4KInner(el); }
-  finally{ if(charts) charts.style.display=prevDisplay; }
-}
-async function renderReport4KInner(el){
-  const rect=el.getBoundingClientRect();
-  const scale=get4KExportScale(el);
-  return html2canvas(el,{
-    scale,
-    backgroundColor:"#fff",
-    useCORS:true,
-    allowTaint:false,
-    imageTimeout:0,
-    logging:false,
-    width:Math.ceil(rect.width),
-    height:Math.ceil(rect.height),
-    windowWidth:Math.max(document.documentElement.clientWidth, Math.ceil(rect.width)),
-    windowHeight:Math.max(document.documentElement.clientHeight, Math.ceil(rect.height)),
-    scrollX:0,
-    scrollY:0
+async function renderReport4K(opts){
+  opts=opts||{};
+  const source=$("reportPaper");
+  if(!source) throw new Error("Generate the report first.");
+  const EXPORT_W=opts.width||1700;   // fixed layout width => identical PNG / PDF on every screen
+
+  await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+
+  // Render an off-screen clone so the on-screen report is never touched.
+  // Charts are not part of the PNG/PDF (header + KPIs + table + summary only).
+  const clone=source.cloneNode(true);
+  clone.id="reportPaperExport";
+  clone.classList.add("export-capture");
+  clone.querySelectorAll(".analytics-grid, canvas").forEach(n=>n.remove());
+
+  // Small icons above each KPI label (real elements render more reliably than pseudo-elements).
+  const ICONS=["📈","🏥","👥","🩺","📊","⚠️","🗺️"];
+  clone.querySelectorAll(".kpi-grid > .kpi").forEach((card,i)=>{
+    const label=card.querySelector(":scope > span");
+    if(!label) return;
+    const ico=document.createElement("em");
+    ico.className="exp-ico";
+    ico.textContent=ICONS[i]||"•";
+    label.insertBefore(ico,label.firstChild);
   });
+
+  const wrap=document.createElement("div");
+  wrap.className="export-wrapper";
+  wrap.style.cssText=`position:fixed;left:-100000px;top:0;width:${EXPORT_W}px;max-width:none;background:#fff;overflow:visible;padding:0;margin:0;border:0;`;
+  wrap.appendChild(clone);
+  document.body.appendChild(wrap);
+
+  try{
+    await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+    const rect=clone.getBoundingClientRect();
+    const width=Math.ceil(Math.max(clone.scrollWidth,rect.width,EXPORT_W));
+    const height=Math.ceil(Math.max(clone.scrollHeight,rect.height));
+    if(height<300) throw new Error("The report is empty - generate it first.");
+
+    let scale=(opts.targetLongSide||3600)/Math.max(width,height);
+    scale=Math.min(scale,Math.sqrt((opts.maxArea||90000000)/(width*height)));
+    scale=Math.max(2,Math.min(scale,8));
+
+    return await html2canvas(clone,{
+      scale,
+      backgroundColor:"#fff",
+      useCORS:true,
+      allowTaint:false,
+      imageTimeout:0,
+      logging:false,
+      width,
+      height,
+      windowWidth:width,
+      windowHeight:height,
+      scrollX:0,
+      scrollY:0
+    });
+  } finally {
+    wrap.remove();
+  }
 }
 
 async function downloadPdf(){
   if(!APP.generated)return;
   const {jsPDF}=window.jspdf;
-  setStatus("Preparing 4K A3 landscape PDF…","info");
-  const canvas=await renderReport4K();
-  const pdf=new jsPDF({orientation:"landscape",unit:"mm",format:"a3",compress:false});
-  const pw=pdf.internal.pageSize.getWidth(),ph=pdf.internal.pageSize.getHeight();
-  const ratio=Math.min(pw/canvas.width,ph/canvas.height);
-  const w=canvas.width*ratio,h=canvas.height*ratio;
-  // Keep the full-resolution PNG in the PDF; do not use FAST JPEG-style compression.
-  pdf.addImage(canvas.toDataURL("image/png"),"PNG",(pw-w)/2,(ph-h)/2,w,h,undefined,"NONE");
+  setStatus("Preparing compact high-resolution PDF…","info");
+  const canvas=await renderReport4K({targetLongSide:6000,maxArea:60000000});
+  // Custom page size = report size (297 mm long side, zero margin), so the
+  // PDF has no extra white space and the report fills the whole page.
+  const ratio=canvas.width/canvas.height;
+  const longSide=297;
+  const pw=ratio>=1?longSide:longSide*ratio;
+  const ph=ratio>=1?longSide/ratio:longSide;
+  const pdf=new jsPDF({orientation:pw>=ph?"landscape":"portrait",unit:"mm",format:[pw,ph],compress:true});
+  pdf.addImage(canvas.toDataURL("image/jpeg",0.95),"JPEG",0,0,pw,ph,undefined,"FAST");
   pdf.save(`Telemedicine_AAM_UPHC_Daily_Report_${APP.reportDate||"report"}.pdf`);
-  setStatus("4K PDF exported successfully.","success");
+  setStatus("Compact high-resolution PDF exported successfully.","success");
 }
 async function downloadPng(){
   if(!APP.generated)return;
   setStatus("Preparing 4K PNG…","info");
-  const canvas=await renderReport4K();
+  const canvas=await renderReport4K({targetLongSide:9000,maxArea:90000000});
   const a=document.createElement("a");
   a.href=canvas.toDataURL("image/png");
   a.download=`Telemedicine_AAM_UPHC_Daily_Report_${APP.reportDate||"report"}_4K.png`;

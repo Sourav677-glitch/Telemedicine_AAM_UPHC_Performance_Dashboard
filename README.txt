@@ -18,3 +18,8 @@ Updates in v30:
 Version v43: Enhanced KPI consultation value blocks and enlarged/bold Top 3 Doctor/AAM cards.
 
 v44: Removed Top 3 Doctors & Top 3 AAMs KPIs; added "AAM UPHCs WITH 0 CONSULTATION" ([B]-[C]) and "Districts with 0 consultations Today" KPIs; Excel % of Availability [H] now exports as percentage; PNG/PDF export now contains only KPIs and report (no graphs).
+
+v45: Report header (TELEMEDICINE • AAM-UPHCs / DAILY PERFORMANCE REPORT / sub-line) is middle aligned with larger type.
+     PNG / PDF export now renders from an off-screen fixed-width clone: KPI section is one compact row of 7 cards
+     (icon, label, value, sub-text) in the same style as the reference screenshot; layout is identical on every screen size.
+     WEST BENGAL SUMMARY labels and values enlarged (wrap inside their cells, never spill).
